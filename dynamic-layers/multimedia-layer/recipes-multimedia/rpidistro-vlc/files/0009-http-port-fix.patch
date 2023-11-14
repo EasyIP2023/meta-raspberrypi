@@ -1,0 +1,18 @@
+Upstream-Status: Inappropriate
+
+RPI-Distro repo clones original vlc and applies patches to enable
+raspiberry pi support.
+
+--- a/modules/demux/adaptive/http/ConnectionParams.cpp
++++ b/modules/demux/adaptive/http/ConnectionParams.cpp
+@@ -70,8 +70,8 @@ void ConnectionParams::setPath(const std
+     if(!hostname.empty())
+     {
+         os << hostname;
+-        if( (port != 80 && scheme != "http") ||
+-            (port != 443 && scheme != "https") )
++        if( (port != 80 && scheme == "http") ||
++            (port != 443 && scheme == "https") )
+             os << ":" << port;
+     }
+     os << path;

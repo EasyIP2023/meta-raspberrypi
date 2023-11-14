@@ -1,0 +1,103 @@
+From ac195c16d60f58e189f7fc37047fd509ca56192f Mon Sep 17 00:00:00 2001
+From: Vincent Davis Jr <vince@underview.tech>
+Date: Sun, 16 Jun 2024 16:22:05 -0400
+Subject: [PATCH] fix rest of minor build errors
+
+Upstream-Status: Inappropriate
+
+RPI-Distro repo forks original vlc and applies patches
+to enable raspiberry pi support.
+
+A number of minor build errors were found
+presumably due to newer GCC + OE compiler
+flags.
+
+Patch just applies minor fixes for issues.
+
+Signed-off-by: Vincent Davis Jr <vince@underview.tech>
+---
+ modules/hw/mmal/vout.c                               | 10 +++-------
+ modules/spu/dynamicoverlay/dynamicoverlay_commands.c |  2 +-
+ modules/video_chroma/swscale.c                       |  2 +-
+ modules/video_filter/deinterlace/yadif.h             |  4 ++--
+ src/input/input.c                                    |  2 +-
+ 5 files changed, 8 insertions(+), 12 deletions(-)
+
+diff --git a/modules/hw/mmal/vout.c b/modules/hw/mmal/vout.c
+index 305ffc700..77e28e12e 100644
+--- a/modules/hw/mmal/vout.c
++++ b/modules/hw/mmal/vout.c
+@@ -1061,13 +1061,9 @@ static int attach_subpics(vout_display_t * const vd, vout_display_sys_t * const
+ }
+ 
+ 
+-static void vd_prepare(vout_display_t *vd, picture_t *p_pic,
+-#if VLC_VER_3
+-                       subpicture_t *subpicture
+-#else
+-                       subpicture_t *subpicture, vlc_tick_t date
+-#endif
+-                       )
++static void vd_prepare(vout_display_t *vd,
++                       picture_t *p_pic,
++                       subpicture_t *subpicture)
+ {
+     MMAL_STATUS_T err;
+     vout_display_sys_t * const sys = vd->sys;
+diff --git a/modules/spu/dynamicoverlay/dynamicoverlay_commands.c b/modules/spu/dynamicoverlay/dynamicoverlay_commands.c
+index da9134896..fc5296b51 100644
+--- a/modules/spu/dynamicoverlay/dynamicoverlay_commands.c
++++ b/modules/spu/dynamicoverlay/dynamicoverlay_commands.c
+@@ -234,7 +234,7 @@ static int parser_SetTextAlpha( char *psz_command, char *psz_end,
+     skip_space( &psz_command );
+     if( isdigit( (unsigned char)*psz_command ) )
+     {
+-        if( parse_digit( &psz_command, &p_params->fontstyle.i_font_alpha ) == VLC_EGENERIC )
++        if( parse_digit( &psz_command, (int32_t *) &p_params->fontstyle.i_font_alpha ) == VLC_EGENERIC )
+             return VLC_EGENERIC;
+     }
+     return VLC_SUCCESS;
+diff --git a/modules/video_chroma/swscale.c b/modules/video_chroma/swscale.c
+index 1f0c6ba51..fed5f4373 100644
+--- a/modules/video_chroma/swscale.c
++++ b/modules/video_chroma/swscale.c
+@@ -607,7 +607,7 @@ static void Convert( filter_t *p_filter, struct SwsContext *ctx,
+                p_dst, i_plane_count, b_swap_uvo );
+ 
+ #if LIBSWSCALE_VERSION_INT  >= ((0<<16)+(5<<8)+0)
+-    sws_scale( ctx, src, src_stride, 0, i_height,
++    sws_scale( ctx, (void*) src, src_stride, 0, i_height,
+                dst, dst_stride );
+ #else
+     sws_scale_ordered( ctx, src, src_stride, 0, i_height,
+diff --git a/modules/video_filter/deinterlace/yadif.h b/modules/video_filter/deinterlace/yadif.h
+index 4bc592ba9..15ad48b86 100644
+--- a/modules/video_filter/deinterlace/yadif.h
++++ b/modules/video_filter/deinterlace/yadif.h
+@@ -145,8 +145,8 @@ static void yadif_filter_line_c_16bit(uint8_t *dst8, uint8_t *prev8, uint8_t *cu
+     uint8_t *cur = (uint8_t *)cur8;
+     uint8_t *next = (uint8_t *)next8;
+     int x;
+-    uint16_t *prev2= parity ? prev : cur ;
+-    uint16_t *next2= parity ? cur  : next;
++    uint16_t *prev2= (uint16_t *) (parity ? prev : cur);
++    uint16_t *next2= (uint16_t *) (parity ? cur  : next);
+     mrefs /= 2;
+     prefs /= 2;
+     FILTER
+diff --git a/src/input/input.c b/src/input/input.c
+index fcd3ecbf5..88e8f897c 100644
+--- a/src/input/input.c
++++ b/src/input/input.c
+@@ -907,7 +907,7 @@ static void InitTitle( input_thread_t * p_input )
+     vlc_mutex_lock( &priv->p_item->lock );
+     /* Create global title (from master) */
+     priv->i_title = p_master->i_title;
+-    priv->title   = p_master->title;
++    priv->title   = (const input_title_t **) p_master->title;
+     priv->i_title_offset = p_master->i_title_offset;
+     priv->i_seekpoint_offset = p_master->i_seekpoint_offset;
+     if( priv->i_title > 0 )
+-- 
+2.34.1
+
