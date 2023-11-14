@@ -6,31 +6,26 @@ LICENSE = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://COPYING;md5=b234ee4d69f5fce4486a80fdaf4a4263"
 
 SRC_URI = "\
-    git://git@github.com/RPi-Distro/vlc;protocol=https;branch=buster-rpt \
+    git://git@github.com/RPi-Distro/vlc;protocol=https;branch=bookworm-rpt \
     file://0001-configure-fix-linking-on-RISC-V-ISA.patch \
-    file://0002-Revert-configure-Require-libmodplug-0.8.9.patch \
-    file://0003-CVE-2022-41325.patch \
-    file://0004-mmal_20.patch \
-    file://0005-mmal_exit_fix.patch \
-    file://0006-mmal_chain.patch \
-    file://0007-armv6.patch \
-    file://0008-configure-Disable-incompatible-function-pointer-type.patch \
-    file://0009-demux-dash-include-cstdint-needed-for-uint64_t.patch \
+    file://0002-Do-not-generate-cache-during-build.patch \
+    file://0003-rpi.patch \
+    file://0004-chain.patch \
+    file://0005-vlc.patch \
+    file://0006-caca.patch \
+    file://0007-qt-wayland.patch \
+    file://0008-qt-fullscreen.patch \
+    file://0009-http-port-fix.patch \
     file://2001-fix-luaL-checkint.patch \
     file://2002-use-vorbisidec.patch \
     file://3001-configure.ac-setup-for-OE-usage.patch \
-    file://3002-fix-EGL-macro-undeclared-and-EGLImageKHR.patch \
-    file://3003-codec-omxil_core-replace-opt-vc-path-with-usr-lib.patch \
-    file://3004-use-GLESv2-headers-over-GL-headers.patch \
-    file://3005-modules-remove-glspectrum-usage.patch \
-    file://3006-codec-omxil_core.h-fix-multiple-definition-of.patch \
-    ${@bb.utils.contains('DISTRO_FEATURES', 'x11', '', 'file://3007-remove-xorg-related-link-libs.patch', d)} \
-    ${@bb.utils.contains('DISTRO_FEATURES', 'opengl', '', 'file://3008-vo-Makefile.am-exclude-libgl_plugin.patch', d)} \
-    file://3009-vo-converter_vaapi-Fix-EGL-macro-undeclared.patch \
-    file://3010-po-Fix-typos-in-oc.po-for-gettext-compatibility.patch \
+    file://3002-codec-omxil_core-replace-opt-vc-path-with-usr-lib.patch \
+    ${@bb.utils.contains('DISTRO_FEATURES', 'x11', '', 'file://3003-remove-xorg-related-link-libs.patch', d)} \
+    file://3004-exclude-opengl-vout-plugin-remove-egl.patch \
+    file://3005-fix-rest-of-minor-build-errors.patch \
     "
 
-SRCREV = "b276eb0d7bc3213363e97dbb681ef7c927be6c73"
+SRCREV = "636141a3506e8de95683e3b0eb571bf9a9c19b96"
 
 S = "${WORKDIR}/git"
 
@@ -38,8 +33,8 @@ PROVIDES = "vlc"
 RPROVIDES:${PN} = "${PROVIDES}"
 DEPENDS = "coreutils-native fribidi libtool libgcrypt libgcrypt-native \
            dbus libxml2 gnutls tremor faad2 ffmpeg flac alsa-lib libidn \
-           jpeg xz libmodplug mpeg2dec libmtp libopus orc libsamplerate0 \
-           avahi libusb1 schroedinger taglib tiff"
+           jpeg xz libmodplug libmtp libopus orc libsamplerate0 \
+           avahi libusb1 schroedinger taglib tiff bison flex"
 
 inherit autotools gettext pkgconfig mime-xdg
 
@@ -61,18 +56,22 @@ EXTRA_OECONF = "\
     --disable-libtar \
     --enable-avcodec \
     --disable-css \
+    --disable-taglib \
     "
 
 PACKAGECONFIG ?= "\
     ${@bb.utils.contains('DISTRO_FEATURES', 'x11', 'x11', '', d)} \
     ${@bb.utils.contains('MACHINE_FEATURES', 'vc4graphics', '', 'mmal', d)} \
-    ${@bb.utils.contains('DISTRO_FEATURES', 'opengl', 'gles2', '', d)} \
     ${@bb.utils.contains_any('DISTRO_FEATURES', 'x11', 'notify', '', d)} \
     live555 dv1394 fontconfig fluidsynth freetype png udev \
-    x264 alsa harfbuzz jack neon fribidi dvbpsi a52 v4l2 \
+    x264 alsa harfbuzz jack neon fribidi dvbpsi v4l2 \
     "
 
-PACKAGECONFIG[mmal] = "--enable-omxil --enable-omxil-vout --enable-rpi-omxil --enable-mmal --enable-mmal-avcodec,,userland"
+# Have to disable mmal-avcodec as libavcodec/rpi_zc source
+# seems to not have been pushed in recent patches.
+EXTRA_OECONF += "--disable-mmal-avcodec"
+
+PACKAGECONFIG[mmal] = "--enable-omxil --enable-omxil-vout --enable-rpi-omxil --enable-mmal,,userland"
 PACKAGECONFIG[x264] = "--enable-x264,--disable-x264,x264"
 PACKAGECONFIG[mad] = "--enable-mad,--disable-mad,libmad"
 PACKAGECONFIG[a52] = "--enable-a52,--disable-a52,liba52"
@@ -122,6 +121,7 @@ PACKAGECONFIG[sdl-image] = "--enable-sdl-image,,libsdl-image"
 PACKAGECONFIG[v4l2] = "--enable-v4l2,,v4l-utils"
 
 TARGET_CFLAGS:append = " -I${STAGING_INCDIR}/drm"
+TARGET_CFLAGS:append = " -I${RECIPE_SYSROOT}/usr/include"
 TARGET_LDFLAGS:append = " ${@bb.utils.contains('DISTRO_FEATURES', 'opengl', '-lGLESv2', '', d)}"
 
 # Ensures the --enable-mmal-avcodec flag is available for usage
@@ -129,7 +129,7 @@ do_configure:prepend() {
     olddir=`pwd`
     cd ${S}
     ./bootstrap
-    cd $olddir 
+    cd $olddir
 }
 
 # This recipe packages vlc as a library as well, so qt4 dependencies

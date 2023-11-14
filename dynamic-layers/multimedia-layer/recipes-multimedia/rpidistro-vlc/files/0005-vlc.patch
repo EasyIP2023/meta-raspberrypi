@@ -1,7 +1,7 @@
 Upstream-Status: Inappropriate
 
-RPI-Distro repo forks original vlc and applies patches
-to enable raspiberry pi support.
+RPI-Distro repo clones original vlc and applies patches to enable
+raspiberry pi support.
 
 --- a/bin/vlc.c
 +++ b/bin/vlc.c
